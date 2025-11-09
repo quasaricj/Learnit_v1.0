@@ -1,0 +1,16 @@
+# Ignore the virtual environment directory
+/course_app/venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore database files
+*.db
+*.sqlite3
+*.db-journal
+
+# Ignore sample course directory created for testing
+/course_app/sample_course/

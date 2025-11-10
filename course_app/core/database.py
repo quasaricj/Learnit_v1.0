@@ -96,6 +96,18 @@ def create_tables():
                 );
             """)
 
+            # Points History Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS points_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    action TEXT NOT NULL,
+                    points INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                );
+            """)
+
             conn.commit()
             print("Database tables created successfully.")
         except sqlite3.Error as e:
@@ -105,5 +117,58 @@ def create_tables():
     else:
         print("Error! Cannot create the database connection.")
 
+def create_default_user():
+    """Creates a default user if one doesn't exist."""
+    conn = create_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE id = 1")
+            user = cursor.fetchone()
+            if not user:
+                cursor.execute("INSERT INTO users (id, username) VALUES (1, 'Learner')")
+                conn.commit()
+                print("Default user created.")
+        except sqlite3.Error as e:
+            print(f"Error creating default user: {e}")
+        finally:
+            conn.close()
+
+def populate_badges():
+    """Populates the badges table with the default set of badges."""
+    badges = [
+        ('First Step', 'Complete your first topic', '👣', 'complete_topic:1'),
+        ('Getting Started', 'Complete 5 topics', '🌱', 'complete_topic:5'),
+        ('Committed Learner', 'Complete 10 topics', '📚', 'complete_topic:10'),
+        ('Module Master', 'Complete any module', '🎓', 'complete_module:1'),
+        ('Phase Champion', 'Complete any phase', '🏆', 'complete_phase:1'),
+        ('Course Conqueror', 'Complete entire course', '👑', 'complete_course:1'),
+        ('Speed Learner', 'Complete 10 topics within target time', '⚡', 'complete_within_time:10'),
+        ('Time Master', 'Complete 30 topics within target time', '⏱️', 'complete_within_time:30'),
+        ('Lightning Fast', 'Complete 50 topics within target time', '🚀', 'complete_within_time:50'),
+        ('Dedicated Student', 'Maintain 7-day streak', '🔥', 'streak:7'),
+        ('Consistency King', 'Maintain 15-day streak', '⭐', 'streak:15'),
+        ('Streak Legend', 'Maintain 30-day streak', '💎', 'streak:30'),
+        ('Early Bird', 'Complete a topic before 9 AM', '🌅', 'early_bird:1'),
+        ('Night Owl', 'Complete a topic after 10 PM', '🦉', 'night_owl:1'),
+        ('Weekend Warrior', 'Complete 5 topics on a weekend', '💪', 'weekend_warrior:5'),
+    ]
+
+    conn = create_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            for name, description, icon, criteria in badges:
+                cursor.execute("INSERT OR IGNORE INTO badges (name, description, icon_path, unlock_criteria) VALUES (?, ?, ?, ?)",
+                               (name, description, icon, criteria))
+            conn.commit()
+            print("Badges populated successfully.")
+        except sqlite3.Error as e:
+            print(f"Error populating badges: {e}")
+        finally:
+            conn.close()
+
 if __name__ == '__main__':
     create_tables()
+    create_default_user()
+    populate_badges()

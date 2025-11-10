@@ -77,16 +77,19 @@ def get_course_structure():
 
         structure = []
         for course_id, course_name in courses:
+            # Assuming a single user with id=1 for now
+            # The query now fetches topic_id and its completion status
             cursor.execute("""
-                SELECT phase_name, module_name, topic_name, file_path
-                FROM topics
-                WHERE course_id = ?
-                ORDER BY order_number
+                SELECT t.id, t.phase_name, t.module_name, t.topic_name, t.file_path, p.completed
+                FROM topics t
+                LEFT JOIN progress p ON t.id = p.topic_id AND p.user_id = 1
+                WHERE t.course_id = ?
+                ORDER BY t.order_number
             """, (course_id,))
             topics = cursor.fetchall()
             structure.append({
                 "course_name": course_name,
-                "topics": topics
+                "topics": topics  # topics is now a list of tuples (id, phase, module, topic, path, completed)
             })
         return structure
     except sqlite3.Error as e:
@@ -94,6 +97,48 @@ def get_course_structure():
         return None
     finally:
         conn.close()
+
+def delete_course(course_name):
+    """
+    Deletes a course and all its related data from the database.
+    """
+    conn = create_connection()
+    if conn is None:
+        raise ConnectionError("Failed to connect to the database.")
+
+    try:
+        cursor = conn.cursor()
+
+        # Get course_id
+        cursor.execute("SELECT id FROM courses WHERE name = ?", (course_name,))
+        course_id_result = cursor.fetchone()
+        if not course_id_result:
+            print(f"Course '{course_name}' not found.")
+            return
+        course_id = course_id_result[0]
+
+        # Get topic_ids for the course
+        cursor.execute("SELECT id FROM topics WHERE course_id = ?", (course_id,))
+        topic_ids = [row[0] for row in cursor.fetchall()]
+
+        # Delete from progress table
+        if topic_ids:
+            cursor.execute(f"DELETE FROM progress WHERE topic_id IN ({','.join('?'*len(topic_ids))})", topic_ids)
+
+        # Delete from topics table
+        cursor.execute("DELETE FROM topics WHERE course_id = ?", (course_id,))
+
+        # Delete from courses table
+        cursor.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+
+        conn.commit()
+        print(f"Course '{course_name}' and all its data have been deleted.")
+    except sqlite3.Error as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 
 if __name__ == '__main__':
     # Change to the script's directory to ensure correct relative paths

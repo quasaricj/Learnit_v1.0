@@ -105,5 +105,23 @@ def create_tables():
     else:
         print("Error! Cannot create the database connection.")
 
+def create_default_user():
+    """Creates a default user if one doesn't exist."""
+    conn = create_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE id = 1")
+            user = cursor.fetchone()
+            if not user:
+                cursor.execute("INSERT INTO users (id, username) VALUES (1, 'Learner')")
+                conn.commit()
+                print("Default user created.")
+        except sqlite3.Error as e:
+            print(f"Error creating default user: {e}")
+        finally:
+            conn.close()
+
 if __name__ == '__main__':
     create_tables()
+    create_default_user()

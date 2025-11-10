@@ -2,15 +2,15 @@ import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QTreeView, QTextBrowser, QSplitter,
-                             QLineEdit, QMenu, QPushButton)
+                             QLineEdit, QMenu, QPushButton, QLabel)
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 
-# Add the parent directory to the path to resolve module imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from ..core.course_parser import get_course_structure
 from ..core.database import create_connection
+from ..core.gamification import award_points, update_streak
+from .timer_widget import TimerWidget
+from .mastery_checklist_dialog import MasteryChecklistDialog
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -59,6 +59,16 @@ class MainWindow(QMainWindow):
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
 
+        # Top bar layout
+        top_bar_layout = QHBoxLayout()
+        top_bar_layout.addStretch()
+        self.points_label = QLabel("Points: 0")
+        self.points_label.setStyleSheet("font-weight: bold;")
+        top_bar_layout.addWidget(self.points_label)
+        self.timer_widget = TimerWidget()
+        top_bar_layout.addWidget(self.timer_widget)
+        content_layout.addLayout(top_bar_layout)
+
         self.content_area = QTextBrowser()
         self.content_area.setOpenExternalLinks(True)
         content_layout.addWidget(self.content_area)
@@ -86,6 +96,8 @@ class MainWindow(QMainWindow):
         self.sidebar.clicked.connect(self.on_topic_selected_proxy)
 
         self.current_topic_index = None
+
+        self.update_points_display()
 
     def load_stylesheet(self):
         """Loads the application's stylesheet."""
@@ -164,8 +176,13 @@ class MainWindow(QMainWindow):
 
         self.current_topic_index = index
         file_path = item.data(Qt.ItemDataRole.UserRole)
+        topic_id = item.data(Qt.ItemDataRole.UserRole + 1)
 
         if file_path and os.path.exists(file_path):
+            self.timer_widget.reset_timer()
+            # In a real app, you'd fetch the target time from the database
+            # self.timer_widget.set_target_time(get_target_time(topic_id))
+            self.timer_widget.start_timer()
             try:
                 import markdown
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -238,31 +255,106 @@ class MainWindow(QMainWindow):
 
     def toggle_topic_completion(self, topic_id):
         """Toggles the completion status of a topic."""
+        # First, check if we are marking as complete or incomplete
         conn = create_connection()
-        if conn is None:
-            return
+        if conn is None: return
+        cursor = conn.cursor()
+        cursor.execute("SELECT completed FROM progress WHERE topic_id = ? AND user_id = 1", (topic_id,))
+        result = cursor.fetchone()
+        conn.close()
+
+        is_currently_complete = result[0] if result else False
+
+        # If marking as complete, show checklist
+        if not is_currently_complete:
+            checklist = MasteryChecklistDialog(self)
+            if not checklist.exec():
+                return # User cancelled
+
+        # Proceed with updating the database
+        conn = create_connection()
+        if conn is None: return
         try:
             cursor = conn.cursor()
-            # Assuming user_id = 1
-            cursor.execute("SELECT completed FROM progress WHERE topic_id = ? AND user_id = 1", (topic_id,))
-            result = cursor.fetchone()
+            time_spent = self.timer_widget.get_elapsed_seconds()
+
+            new_status = not is_currently_complete
 
             if result:
-                new_status = not result[0]
-                cursor.execute("UPDATE progress SET completed = ? WHERE topic_id = ? AND user_id = 1", (new_status, topic_id))
+                cursor.execute("UPDATE progress SET completed = ?, time_spent_seconds = time_spent_seconds + ?, completion_date = CURRENT_TIMESTAMP WHERE topic_id = ? AND user_id = 1", (new_status, time_spent, topic_id))
             else:
-                new_status = True
-                cursor.execute("INSERT INTO progress (user_id, topic_id, completed) VALUES (1, ?, ?)", (topic_id, new_status))
+                cursor.execute("INSERT INTO progress (user_id, topic_id, completed, time_spent_seconds, completion_date) VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)", (topic_id, new_status, time_spent))
 
             conn.commit()
+
+            if new_status:
+                award_points(1, "complete_topic")
+                self.check_module_phase_completion(topic_id)
+                update_streak(1)
+
             print(f"Set topic {topic_id} completion to {new_status}")
         except Exception as e:
             print(f"Error toggling completion status: {e}")
         finally:
             conn.close()
 
-        # After updating the DB, refresh the sidebar
+        # After updating the DB, refresh everything
         self.populate_sidebar()
+        self.update_points_display()
+
+    def check_module_phase_completion(self, topic_id):
+        """Check if a module or phase is complete and award points."""
+        conn = create_connection()
+        if conn is None: return
+
+        try:
+            cursor = conn.cursor()
+            # Get phase and module name for the completed topic
+            cursor.execute("SELECT phase_name, module_name, course_id FROM topics WHERE id = ?", (topic_id,))
+            res = cursor.fetchone()
+            if not res: return
+            phase_name, module_name, course_id = res
+
+            # Check for module completion
+            cursor.execute("""
+                SELECT COUNT(*) FROM topics
+                WHERE course_id = ? AND phase_name = ? AND module_name = ?
+                  AND id NOT IN (SELECT topic_id FROM progress WHERE user_id = 1 AND completed = 1)
+            """, (course_id, phase_name, module_name))
+            if cursor.fetchone()[0] == 0:
+                award_points(1, "complete_module")
+                print(f"Module '{module_name}' completed!")
+
+            # Check for phase completion
+            cursor.execute("""
+                SELECT COUNT(*) FROM topics
+                WHERE course_id = ? AND phase_name = ?
+                  AND id NOT IN (SELECT topic_id FROM progress WHERE user_id = 1 AND completed = 1)
+            """, (course_id, phase_name))
+            if cursor.fetchone()[0] == 0:
+                award_points(1, "complete_phase")
+                print(f"Phase '{phase_name}' completed!")
+        except Exception as e:
+            print(f"Error checking module/phase completion: {e}")
+        finally:
+            conn.close()
+
+    def update_points_display(self):
+        """Updates the points display in the top bar."""
+        conn = create_connection()
+        if conn is None:
+            return
+        try:
+            cursor = conn.cursor()
+            # Assuming user_id = 1
+            cursor.execute("SELECT total_points FROM users WHERE id = 1")
+            points = cursor.fetchone()
+            if points:
+                self.points_label.setText(f"Points: {points[0]}")
+        except Exception as e:
+            print(f"Error updating points display: {e}")
+        finally:
+            conn.close()
 
     def mark_as_favorite(self, topic_id):
         """Marks a topic as a favorite."""

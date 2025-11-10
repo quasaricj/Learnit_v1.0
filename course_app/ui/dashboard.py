@@ -6,10 +6,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
 
-# Add the parent directory to the path to resolve module imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from .upload_dialog import UploadDialog
+from .points_history_dialog import PointsHistoryDialog
+from .trophy_room_dialog import TrophyRoomDialog
 from ..core.course_parser import get_course_structure, delete_course
 from ..core.database import create_connection
 
@@ -22,6 +21,7 @@ class Dashboard(QWidget):
         super().__init__(parent)
         self.init_ui()
         self.populate_course_list()
+        self.refresh_stats()
 
     def init_ui(self):
         layout = QGridLayout(self)
@@ -85,24 +85,20 @@ class Dashboard(QWidget):
         title = QLabel("<h2>Progress Overview</h2>")
 
         # Overall Progress
-        overall_progress_bar = QProgressBar()
-        overall_progress_bar.setValue(65)
-        overall_progress_bar.setTextVisible(True)
-        overall_progress_bar.setFormat("Overall: %p%")
+        self.overall_progress_bar = QProgressBar()
+        self.overall_progress_bar.setValue(0)
+        self.overall_progress_bar.setTextVisible(True)
+        self.overall_progress_bar.setFormat("Overall: %p%")
 
-        # Phase Breakdown (placeholders)
-        phase1_progress = QLabel("Phase 1: <b>Completed</b>")
-        phase2_progress = QLabel("Phase 2: <b>80%</b>")
-        phase3_progress = QLabel("Phase 3: <b>25%</b>")
+        # Phase Breakdown
+        self.phase_progress_layout = QVBoxLayout()
 
-        next_topic_label = QLabel("Next Topic: <i>Introduction to PyQt6</i>")
+        self.next_topic_label = QLabel("Next Topic: <i>...</i>")
 
         layout.addWidget(title)
-        layout.addWidget(overall_progress_bar)
-        layout.addWidget(phase1_progress)
-        layout.addWidget(phase2_progress)
-        layout.addWidget(phase3_progress)
-        layout.addWidget(next_topic_label)
+        layout.addWidget(self.overall_progress_bar)
+        layout.addLayout(self.phase_progress_layout)
+        layout.addWidget(self.next_topic_label)
 
         return widget
 
@@ -113,18 +109,16 @@ class Dashboard(QWidget):
         layout = QVBoxLayout(widget)
 
         title = QLabel("<h2>Gamification</h2>")
-        points_today = QLabel("Points Today: <b>75</b>")
-        streak_status = QLabel("Daily Streak: <b>Active!</b> 🔥")
-        recent_badges_label = QLabel("Recent Badges:")
-        badge1 = QLabel("🏅 First Topic")
-        badge2 = QLabel("🏆 Module Master")
+        self.points_today_label = QLabel("Points Today: <b>0</b>")
+        self.streak_status_label = QLabel("Daily Streak: <b>...</b>")
+
+        view_history_button = QPushButton("View Points History")
+        view_history_button.clicked.connect(self.open_points_history)
 
         layout.addWidget(title)
-        layout.addWidget(points_today)
-        layout.addWidget(streak_status)
-        layout.addWidget(recent_badges_label)
-        layout.addWidget(badge1)
-        layout.addWidget(badge2)
+        layout.addWidget(self.points_today_label)
+        layout.addWidget(self.streak_status_label)
+        layout.addWidget(view_history_button)
 
         return widget
 
@@ -135,14 +129,14 @@ class Dashboard(QWidget):
         layout = QVBoxLayout(widget)
 
         title = QLabel("<h3>Quick Stats</h3>")
-        topics_this_week = QLabel("Topics this week: <b>12</b>")
-        avg_time = QLabel("Avg. learning time: <b>25 min</b>")
-        consistency = QLabel("Consistency: <b>Good</b>")
+        self.topics_this_week_label = QLabel("Topics this week: <b>0</b>")
+        self.avg_time_label = QLabel("Avg. learning time: <b>0 min</b>")
+        self.consistency_label = QLabel("Consistency: <b>...</b>")
 
         layout.addWidget(title)
-        layout.addWidget(topics_this_week)
-        layout.addWidget(avg_time)
-        layout.addWidget(consistency)
+        layout.addWidget(self.topics_this_week_label)
+        layout.addWidget(self.avg_time_label)
+        layout.addWidget(self.consistency_label)
 
         return widget
 
@@ -160,6 +154,7 @@ class Dashboard(QWidget):
 
         view_badges_button = QPushButton("View All Badges")
         view_badges_button.setIcon(icon("fa.trophy", color="white"))
+        view_badges_button.clicked.connect(self.open_trophy_room)
 
         settings_button = QPushButton("Settings")
         settings_button.setIcon(icon("fa.cog", color="white"))
@@ -258,6 +253,16 @@ class Dashboard(QWidget):
         if dialog.exec():
             self.populate_course_list()
             # You might want to signal the main window to refresh the sidebar as well
+
+    def open_points_history(self):
+        """Opens the points history dialog."""
+        dialog = PointsHistoryDialog(self)
+        dialog.exec()
+
+    def open_trophy_room(self):
+        """Opens the trophy room dialog."""
+        dialog = TrophyRoomDialog(self)
+        dialog.exec()
 
 if __name__ == '__main__':
     # This is for testing the Dashboard widget independently

@@ -91,7 +91,12 @@ class MainWindow(QMainWindow):
     def on_topic_selected(self, index):
         """Handles the selection of a topic in the sidebar."""
         item = self.sidebar.model.itemFromIndex(index)
+        if not item:
+            return
+
         data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
 
         if data["type"] == "dashboard":
             self.stacked_widget.setCurrentWidget(self.dashboard)
@@ -100,9 +105,6 @@ class MainWindow(QMainWindow):
         elif data["type"] == "topic" and os.path.exists(data["file_path"]):
             self.course_viewer.load_topic(data["file_path"], data["topic_id"])
             self.stacked_widget.setCurrentWidget(self.course_viewer)
-        else:
-            # Fallback to dashboard if the content is not found or is not a file
-            self.stacked_widget.setCurrentWidget(self.dashboard)
 
     def open_upload_dialog(self):
         """Opens the course upload dialog."""

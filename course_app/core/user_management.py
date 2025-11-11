@@ -22,16 +22,19 @@ def create_user(username, db_file=None):
     return user_id
 
 def get_current_user(db_file=None):
-    """Gets the current user."""
-    # For now, we'll hardcode the user. In a real application, you would
-    # implement a login system.
-    create_user("default_user", db_file)
+    """Gets the current user, creating one if none exist."""
     conn = create_connection(db_file) if db_file else create_connection()
     if conn:
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT id, username FROM users WHERE username = 'default_user'")
-            return cursor.fetchone()
+            user = cursor.fetchone()
+            if user:
+                return user
+            else:
+                create_user("default_user", db_file)
+                cursor.execute("SELECT id, username FROM users WHERE username = 'default_user'")
+                return cursor.fetchone()
         except Exception as e:
             print(f"Error getting current user: {e}")
             return None

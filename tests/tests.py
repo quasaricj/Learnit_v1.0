@@ -7,6 +7,7 @@ import sqlite3
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from course_app.core.course_parser import parse_course_structure, get_course_structure
 from course_app.core.progress_tracker import mark_topic_complete
 from course_app.core.database import create_tables, create_connection
 from course_app.core.user_management import create_user
@@ -15,7 +16,7 @@ from course_app.core.user_management import create_user
 TEST_DB_FILE = os.path.join(os.path.dirname(__file__), "test_app.db")
 
 
-class TestProgressTracker(unittest.TestCase):
+class TestApp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up the database and tables once for all tests."""
@@ -31,26 +32,29 @@ class TestProgressTracker(unittest.TestCase):
             os.remove(TEST_DB_FILE)
 
     def setUp(self):
-        """Set up a test user and topic before each test."""
+        """Set up a test course directory, user and topic before each test."""
+        self.test_course_dir = "test_course"
+        os.makedirs(os.path.join(self.test_course_dir, "Phase 1", "Module 1"), exist_ok=True)
+        with open(os.path.join(self.test_course_dir, "Phase 1", "Module 1", "Topic 1.md"), "w") as f:
+            f.write("# Test Topic 1")
+
+        parse_course_structure(self.test_course_dir, TEST_DB_FILE)
+
         self.conn = create_connection(TEST_DB_FILE)
         self.cursor = self.conn.cursor()
 
         # Create user
         self.user_id = create_user("test_user", TEST_DB_FILE)
 
-        # Create topic
-        self.cursor.execute("INSERT INTO courses (name, path) VALUES ('test_course', 'test_path')")
-        self.cursor.execute("SELECT id FROM courses WHERE name = 'test_course'")
-        course_id = self.cursor.fetchone()[0]
-        self.cursor.execute("INSERT INTO topics (course_id, phase_name, module_name, topic_name, file_path, order_number) VALUES (?, ?, ?, ?, ?, ?)",
-                           (course_id, "p1", "m1", "t1", "path1", 1))
-        self.cursor.execute("SELECT id FROM topics WHERE file_path = 'path1'")
+        self.cursor.execute("SELECT id FROM topics WHERE file_path = 'test_course/Phase 1/Module 1/Topic 1.md'")
         self.topic_id = self.cursor.fetchone()[0]
 
         self.conn.commit()
 
+
     def tearDown(self):
-        """Clean up the database entries after each test."""
+        """Clean up the test course directory and database entries after each test."""
+        shutil.rmtree(self.test_course_dir)
         self.cursor.execute("DELETE FROM progress")
         self.cursor.execute("DELETE FROM user_badges")
         self.cursor.execute("DELETE FROM users")
@@ -58,6 +62,26 @@ class TestProgressTracker(unittest.TestCase):
         self.cursor.execute("DELETE FROM courses")
         self.conn.commit()
         self.conn.close()
+
+    def test_parse_course_structure(self):
+        """Test if the course structure is parsed and stored correctly."""
+        # Get the course data
+        all_courses = get_course_structure(TEST_DB_FILE)
+
+        # Filter for the test course
+        test_course_data = None
+        for course in all_courses:
+            if course['course_name'] == 'test_course':
+                test_course_data = course
+                break
+
+        self.assertIsNotNone(test_course_data, "Test course was not found in the database.")
+        self.assertEqual(len(test_course_data['topics']), 1)
+
+        topic_details = test_course_data['topics'][0]
+        self.assertEqual(topic_details[1], "Phase 1")
+        self.assertEqual(topic_details[2], "Module 1")
+        self.assertEqual(topic_details[3], "Topic 1")
 
     def test_mark_topic_complete(self):
         """Test if marking a topic as complete works correctly."""

@@ -7,11 +7,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import create_connection
 
-def parse_course_structure(course_path):
+def parse_course_structure(course_path, db_file=None):
     """
     Parses the course structure from a given folder path and populates the database.
     """
-    conn = create_connection()
+    conn = create_connection(db_file) if db_file else create_connection()
     if conn is None:
         print("Error! Cannot create the database connection.")
         return
@@ -62,11 +62,11 @@ def parse_course_structure(course_path):
     finally:
         conn.close()
 
-def get_course_structure():
+def get_course_structure(db_file=None):
     """
     Retrieves the full course structure from the database.
     """
-    conn = create_connection()
+    conn = create_connection(db_file) if db_file else create_connection()
     if conn is None:
         return None
 
@@ -78,7 +78,7 @@ def get_course_structure():
         structure = []
         for course_id, course_name in courses:
             cursor.execute("""
-                SELECT phase_name, module_name, topic_name, file_path
+                SELECT id, phase_name, module_name, topic_name, file_path
                 FROM topics
                 WHERE course_id = ?
                 ORDER BY order_number
@@ -92,6 +92,35 @@ def get_course_structure():
     except sqlite3.Error as e:
         print(f"Error retrieving course structure: {e}")
         return None
+    finally:
+        conn.close()
+
+def get_topic_navigation(topic_id, db_file=None):
+    """
+    Retrieves the next and previous topic IDs for a given topic.
+    """
+    conn = create_connection(db_file) if db_file else create_connection()
+    if conn is None:
+        return None, None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT course_id, order_number FROM topics WHERE id = ?", (topic_id,))
+        course_id, order_number = cursor.fetchone()
+
+        # Get previous topic
+        cursor.execute("SELECT id FROM topics WHERE course_id = ? AND order_number < ? ORDER BY order_number DESC LIMIT 1", (course_id, order_number))
+        prev_topic = cursor.fetchone()
+
+        # Get next topic
+        cursor.execute("SELECT id FROM topics WHERE course_id = ? AND order_number > ? ORDER BY order_number ASC LIMIT 1", (course_id, order_number))
+        next_topic = cursor.fetchone()
+
+        return prev_topic[0] if prev_topic else None, next_topic[0] if next_topic else None
+
+    except sqlite3.Error as e:
+        print(f"Error retrieving topic navigation: {e}")
+        return None, None
     finally:
         conn.close()
 

@@ -1,14 +1,18 @@
 import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QTreeView, QTextBrowser, QSplitter)
+                             QHBoxLayout, QTreeView, QSplitter, QStackedWidget, QPushButton)
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt
 
 # Add the parent directory to the path to resolve module imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.course_parser import get_course_structure
+from core.course_parser import get_course_structure, parse_course_structure
+from ui.dashboard import Dashboard
+from ui.course_viewer import CourseViewer
+from ui.upload_dialog import UploadDialog
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -24,21 +28,35 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
 
-        # Create a splitter to allow resizing of sidebar and content
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter)
+        # --- Left Panel ---
+        left_panel = QWidget()
+        left_layout = QVBoxLayout()
+        left_panel.setLayout(left_layout)
 
         # --- Sidebar ---
         self.sidebar = QTreeView()
         self.sidebar.setHeaderHidden(True)
         self.sidebar_model = QStandardItemModel()
         self.sidebar.setModel(self.sidebar_model)
-        splitter.addWidget(self.sidebar)
+        left_layout.addWidget(self.sidebar)
+
+        # --- Upload Button ---
+        self.upload_button = QPushButton("Upload Course")
+        self.upload_button.clicked.connect(self.open_upload_dialog)
+        left_layout.addWidget(self.upload_button)
+
+        # Create a splitter to allow resizing of sidebar and content
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(left_panel)
+        main_layout.addWidget(splitter)
 
         # --- Main Content Area ---
-        self.content_area = QTextBrowser()
-        self.content_area.setOpenExternalLinks(True)
-        splitter.addWidget(self.content_area)
+        self.stacked_widget = QStackedWidget()
+        self.dashboard = Dashboard()
+        self.course_viewer = CourseViewer()
+        self.stacked_widget.addWidget(self.dashboard)
+        self.stacked_widget.addWidget(self.course_viewer)
+        splitter.addWidget(self.stacked_widget)
 
         # Set initial sizes for the splitter
         splitter.setSizes([300, 900])
@@ -48,6 +66,9 @@ class MainWindow(QMainWindow):
 
         # Connect sidebar clicks to content updates
         self.sidebar.clicked.connect(self.on_topic_selected)
+
+        # Set the dashboard as the initial view
+        self.stacked_widget.setCurrentWidget(self.dashboard)
 
     def load_stylesheet(self):
         """Loads the application's stylesheet."""
@@ -60,11 +81,18 @@ class MainWindow(QMainWindow):
 
     def populate_sidebar(self):
         """Fills the sidebar with the course structure from the database."""
+        self.sidebar_model.clear()
         course_data = get_course_structure()
-        if not course_data:
-            return
 
         root_item = self.sidebar_model.invisibleRootItem()
+
+        # Add a "Dashboard" item to the sidebar
+        dashboard_item = QStandardItem("Dashboard")
+        dashboard_item.setData("dashboard", Qt.ItemDataRole.UserRole)
+        root_item.appendRow(dashboard_item)
+
+        if not course_data:
+            return
 
         for course in course_data:
             course_item = QStandardItem(course['course_name'])
@@ -95,17 +123,23 @@ class MainWindow(QMainWindow):
     def on_topic_selected(self, index):
         """Handles the selection of a topic in the sidebar."""
         item = self.sidebar_model.itemFromIndex(index)
-        file_path = item.data(Qt.ItemDataRole.UserRole)
+        data = item.data(Qt.ItemDataRole.UserRole)
 
-        if file_path and os.path.exists(file_path):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    markdown_content = f.read()
-                    self.content_area.setMarkdown(markdown_content)
-            except Exception as e:
-                self.content_area.setText(f"Error loading file: {e}")
-        elif not file_path:
-            self.content_area.setText("<h1>Select a topic to begin learning.</h1>")
+        if data == "dashboard":
+            self.stacked_widget.setCurrentWidget(self.dashboard)
+        elif data and os.path.exists(data):
+            self.course_viewer.load_topic(data)
+            self.stacked_widget.setCurrentWidget(self.course_viewer)
+        else:
+            # Fallback to dashboard if the content is not found or is not a file
+            self.stacked_widget.setCurrentWidget(self.dashboard)
+
+    def open_upload_dialog(self):
+        """Opens the course upload dialog."""
+        dialog = UploadDialog(self)
+        if dialog.exec():
+            # The dialog handles the folder selection and parsing
+            self.populate_sidebar()
 
 
 if __name__ == '__main__':
@@ -119,7 +153,6 @@ if __name__ == '__main__':
         with open(os.path.join(sample_course_path, "Phase 1/Module 1/Topic 1.md"), "w") as f:
             f.write("# Welcome to Learnit!")
 
-    from core.course_parser import parse_course_structure
     parse_course_structure(sample_course_path)
 
     app = QApplication(sys.argv)

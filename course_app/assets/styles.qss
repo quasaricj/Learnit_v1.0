@@ -1,66 +1,45 @@
-/*
- * styles.qss
- *
- * This stylesheet provides a modern, clean look for the Learnit application.
- * Inspired by platforms like Coursera and Udemy.
- */
-
-/* --- Main Window --- */
+/* General Styling */
 QMainWindow {
-    background-color: #f5f7fa; /* Light grey background */
+    background-color: #f0f2f5;
 }
 
-/* --- Sidebar --- */
+QWidget {
+    font-family: 'Segoe UI', sans-serif;
+    color: #333;
+}
+
+/* Sidebar Styling */
 QTreeView {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 5px;
+    background-color: #fff;
+    border: none;
     font-size: 14px;
-    padding: 10px;
 }
 
 QTreeView::item {
-    padding: 8px;
+    padding: 10px;
+    border-radius: 5px;
 }
 
 QTreeView::item:selected {
-    background-color: #e7f3ff; /* Light blue for selection */
-    color: #0056b3;
-    border-radius: 3px;
+    background-color: #e6f0ff;
+    color: #0052cc;
 }
 
 QTreeView::item:hover {
-    background-color: #f0f0f0;
+    background-color: #f5f5f5;
 }
 
-/* --- Main Content Area --- */
+/* Content Area Styling */
 QTextBrowser {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
+    background-color: #fff;
+    border: 1px solid #ddd;
     border-radius: 5px;
     padding: 20px;
-    font-size: 16px;
-    line-height: 1.6;
 }
 
-/* --- Headings --- */
-h1 {
-    font-size: 28px;
-    font-weight: bold;
-    color: #333;
-    margin-bottom: 15px;
-}
-
-h2 {
-    font-size: 24px;
-    font-weight: bold;
-    color: #444;
-    margin-bottom: 12px;
-}
-
-/* --- Buttons --- */
+/* Button Styling */
 QPushButton {
-    background-color: #007bff;
+    background-color: #0052cc;
     color: white;
     border: none;
     padding: 10px 20px;
@@ -70,33 +49,17 @@ QPushButton {
 }
 
 QPushButton:hover {
-    background-color: #0056b3;
+    background-color: #0065ff;
 }
 
 QPushButton:pressed {
-    background-color: #004494;
+    background-color: #004080;
 }
 
-/* --- Labels --- */
-QLabel {
-    font-size: 14px;
-    color: #555;
-}
-
-/* --- Scrollbars --- */
-QScrollBar:vertical {
-    border: none;
-    background: #f0f0f0;
-    width: 10px;
-    margin: 0px 0px 0px 0px;
-}
-
-QScrollBar::handle:vertical {
-    background: #c0c0c0;
-    min-height: 20px;
-    border-radius: 5px;
-}
-
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;
+/* Dashboard Styling */
+#stat_box {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
 }

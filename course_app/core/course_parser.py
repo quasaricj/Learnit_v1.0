@@ -7,11 +7,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import create_connection
 
-def parse_course_structure(course_path):
+def parse_course_structure(course_path, db_file=None):
     """
     Parses the course structure from a given folder path and populates the database.
     """
-    conn = create_connection()
+    conn = create_connection(db_file) if db_file else create_connection()
     if conn is None:
         print("Error! Cannot create the database connection.")
         return
@@ -62,11 +62,11 @@ def parse_course_structure(course_path):
     finally:
         conn.close()
 
-def get_course_structure():
+def get_course_structure(db_file=None):
     """
     Retrieves the full course structure from the database.
     """
-    conn = create_connection()
+    conn = create_connection(db_file) if db_file else create_connection()
     if conn is None:
         return None
 

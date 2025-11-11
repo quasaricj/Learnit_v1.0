@@ -3,20 +3,20 @@ import os
 
 DATABASE_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'course_app.db')
 
-def create_connection():
+def create_connection(db_file=DATABASE_FILE):
     """Create a database connection to the SQLite database."""
     conn = None
     try:
-        os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
-        conn = sqlite3.connect(DATABASE_FILE)
+        os.makedirs(os.path.dirname(db_file), exist_ok=True)
+        conn = sqlite3.connect(db_file)
         return conn
     except sqlite3.Error as e:
         print(e)
     return conn
 
-def create_tables():
+def create_tables(db_file=DATABASE_FILE):
     """Create the tables in the database."""
-    conn = create_connection()
+    conn = create_connection(db_file)
     if conn is not None:
         try:
             cursor = conn.cursor()
@@ -98,12 +98,44 @@ def create_tables():
 
             conn.commit()
             print("Database tables created successfully.")
+
+            # Populate default badges
+            populate_default_badges(db_file)
+
         except sqlite3.Error as e:
             print(f"Error creating tables: {e}")
         finally:
             conn.close()
     else:
         print("Error! Cannot create the database connection.")
+
+def populate_default_badges(db_file=DATABASE_FILE):
+    """Populates the badges table with the default set of badges."""
+    conn = create_connection(db_file)
+    if conn:
+        try:
+            cursor = conn.cursor()
+
+            default_badges = [
+                ("First Step", "Complete your first topic", "assets/badges/first_step.png", "topics_completed >= 1"),
+                ("Module Master", "Complete any module", "assets/badges/module_master.png", "module_completed"),
+                ("Phase Champion", "Complete any phase", "assets/badges/phase_champion.png", "phase_completed"),
+                ("Speed Learner", "Complete 10 topics within target time", "assets/badges/speed_learner.png", "speed_learner_10"),
+                ("Dedicated Student", "Maintain 7-day learning streak", "assets/badges/dedicated_student.png", "streak_7"),
+                ("Time Master", "Complete 30 topics within target time", "assets/badges/time_master.png", "speed_learner_30"),
+                ("Course Conqueror", "Complete entire course", "assets/badges/course_conqueror.png", "course_completed"),
+                ("Streak Legend", "Maintain 30-day learning streak", "assets/badges/streak_legend.png", "streak_30")
+            ]
+
+            cursor.executemany("INSERT OR IGNORE INTO badges (name, description, icon_path, unlock_criteria) VALUES (?, ?, ?, ?)", default_badges)
+            conn.commit()
+            print("Default badges populated.")
+
+        except sqlite3.Error as e:
+            print(f"Error populating badges: {e}")
+        finally:
+            conn.close()
+
 
 if __name__ == '__main__':
     create_tables()
